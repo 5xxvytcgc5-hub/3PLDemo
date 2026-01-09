@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import plotly as pl
 
 # Use a try-except block to handle missing modules gracefully
 try:
