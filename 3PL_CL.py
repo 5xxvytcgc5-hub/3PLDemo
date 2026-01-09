@@ -2,115 +2,114 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-import plotly.express as px
 
 # --- 1. PAGE CONFIGURATION ---
-st.set_page_config(page_title="3PL Playbook Light", layout="wide")
+st.set_page_config(page_title="3PL Playbook Pro", layout="wide")
 
-# --- 2. THEME & STYLING ---
+# --- 2. STYLING ---
 st.markdown("""
     <style>
-    .main-header { font-size: 2.5em; font-weight: 800; color: #0984e3; margin-bottom: 0.2em; }
-    .company-brand { font-size: 1.8em; font-weight: 800; color: #0984e3; margin-bottom: 10px; border-bottom: 2px solid #0984e3; }
-    .stMetric { background-color: #1e1e2e; padding: 15px; border-radius: 10px; border-left: 5px solid #0984e3; }
+    .main-header { font-size: 2.3em; font-weight: 800; color: #0984e3; }
+    .stMetric { background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. MASTER INITIALIZATION (3PL SPECIFIC) ---
+# --- 3. REAL-WORLD DATA INITIALIZATION ---
 def initialize_state():
     if 'financial_engine' not in st.session_state:
         months = pd.date_range(start="2025-01-01", periods=12, freq='MS').strftime('%b %Y')
+        # Numbers pulled directly from your "Best Practice" image
         st.session_state.financial_engine = pd.DataFrame({
             'Month': months,
-            'Revenue': [150000.0] * 12,           # Monthly Contract Revenue
-            'Handling Costs': [65000.0] * 12,     # Variable Warehouse Labor
-            'Storage Overhead': [35000.0] * 12,   # Facility utility/rent
-            'Equipment Lease': [12000.0] * 12,    # Forklifts/MHE
-            'Fixed OpEx': [18000.0] * 12,         # Site Management/Admin
-            'Taxes': [4500.0] * 12,
-            'Depreciation': [2500.0] * 12
+            'Handling Rev': [115000.0] * 12,
+            'Storage Rev': [105000.0] * 12,
+            'VAS Rev': [45000.0] * 12,
+            'Freight Mgmt': [15000.0] * 12,
+            'Pass-Through': [20000.0] * 12,
+            'Labor Cost': [126000.0] * 12,
+            'Facility Cost': [58800.0] * 12,
+            'Pkg & Consumables': [11200.0] * 12,
+            'IT/Admin': [14000.0] * 12,
+            'Corp Mgmt': [16800.0] * 12,
+            'Depreciation': [14000.0] * 12
         })
-
-    defaults = {
-        'pallet_throughput': 5000, 'staff_count': 45, 'locations': 8500,
-        'target_gp_pallet': 12.50, 'target_ebit_pallet': 5.0
-    }
-    for key, val in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = val
 
 initialize_state()
 
-# --- 4. SIDEBAR LEVERS ---
-st.sidebar.markdown('<div class="company-brand">3PL Playbook</div>', unsafe_allow_html=True)
-st.sidebar.subheader("🕹️ Facility Drivers")
-vol = st.sidebar.number_input("Monthly Pallet Throughput", value=st.session_state.pallet_throughput, step=100)
-fte = st.sidebar.number_input("Warehouse FTE", value=st.session_state.staff_count)
-locs = st.sidebar.number_input("Occupied Locations", value=st.session_state.locations)
+# --- 4. SIDEBAR: OPERATIONAL INPUTS ---
+st.sidebar.header("🕹️ Facility Drivers")
+vol = st.sidebar.number_input("Monthly Pallet Vol", value=5000, min_value=1)
+rent_actual = st.sidebar.number_input("Actual Rent Cost", value=45000)
 
-st.sidebar.markdown("---")
-st.sidebar.subheader("🎯 Target Economics")
-tar_gp = st.sidebar.slider("Target GP/Pallet", 5.0, 25.0, value=12.5)
-tar_ebit = st.sidebar.slider("Target EBIT/Pallet", 1.0, 15.0, value=5.0)
+st.sidebar.divider()
+st.sidebar.subheader("📈 KPI Targets")
+target_gp_margin = st.sidebar.slider("Target Gross Margin %", 20, 40, 30)
+target_ebitda_margin = st.sidebar.slider("Target EBITDA %", 10, 25, 19)
 
-# --- 5. MAIN DASHBOARD ---
-st.markdown('<div class="main-header">🛡️ Warehouse Diagnostic & Strategy</div>', unsafe_allow_html=True)
+# --- 5. CALCULATION ENGINE ---
+# Create a copy for calculations
+df = st.session_state.financial_engine.copy()
+df['Gross Revenue'] = df['Handling Rev'] + df['Storage Rev'] + df['VAS Rev'] + df['Freight Mgmt'] + df['Pass-Through']
+df['Net Revenue'] = df['Gross Revenue'] - df['Pass-Through']
+df['Total Direct Cost'] = df['Labor Cost'] + df['Facility Cost'] + df['Pkg & Consumables']
+df['Gross Profit'] = df['Net Revenue'] - df['Total Direct Cost']
+df['EBITDA'] = df['Gross Profit'] - (df['IT/Admin'] + df['Corp Mgmt'])
+df['EBIT'] = df['EBITDA'] - df['Depreciation']
 
-# Pull Data
-d = st.session_state.financial_engine.iloc[0]
-gp = d['Revenue'] - d['Handling Costs'] - d['Storage Overhead']
-ebitda = gp - d['Equipment Lease'] - d['Fixed OpEx']
-ebit = ebitda - d['Depreciation']
+# Single Month Analysis focus
+d = df.iloc[0]
 
-# Row 1: The 3PL KPI Grid
-st.subheader("💰 Financial & Operational performance")
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Revenue", f"${d['Revenue']:,.0f}")
-c2.metric("Gross Profit", f"${gp:,.0f}", f"{(gp/d['Revenue']):.1%}")
-c3.metric("EBITDA", f"${ebitda:,.0f}", f"{(ebitda/d['Revenue']):.1%}")
-c4.metric("EBIT", f"${ebit:,.0f}")
+# --- 6. MAIN DASHBOARD UI ---
+st.markdown('<div class="main-header">🛡️ 3PL Diagnostic: Best Practice Mode</div>', unsafe_allow_html=True)
 
-st.markdown("<br>", unsafe_allow_html=True)
-c5, c6, c7, c8 = st.columns(4)
-c5.metric("GP / Pallet", f"${gp/vol:,.2f}", delta=f"Target: ${tar_gp}")
-c6.metric("Throughput / FTE", f"{vol/fte:,.1f} units")
-c7.metric("Handling Cost / Pallet", f"${d['Handling Costs']/vol:,.2f}")
-c8.metric("Rev / Location", f"${d['Revenue']/locs:,.2f}")
+# Row 1: Financial Performance
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Net Revenue", f"${d['Net Revenue']:,.0f}")
 
-# Row 2: Visualizations
-st.markdown("---")
-col_wf, col_ledger = st.columns([1, 1])
+gp_margin = (d['Gross Profit'] / d['Net Revenue']) * 100
+col2.metric("Gross Profit", f"${d['Gross Profit']:,.0f}", f"{gp_margin:.1f}% Margin")
 
-with col_wf:
-    st.subheader("📊 Profitability Bridge")
-    fig_wf = go.Figure(go.Waterfall(
-        x=["Revenue", "Handling", "Storage", "Leases", "Admin", "EBITDA"],
-        y=[d['Revenue'], -d['Handling Costs'], -d['Storage Overhead'], -d['Equipment Lease'], -d['Fixed OpEx'], 0],
-        connector={"line":{"color":"#0984e3"}}
-    ))
-    fig_wf.update_layout(template="plotly_dark", height=400, margin=dict(t=20, b=20, l=20, r=20))
-    st.plotly_chart(fig_wf, use_container_width=True)
+ebitda_margin = (d['EBITDA'] / d['Net Revenue']) * 100
+col3.metric("EBITDA", f"${d['EBITDA']:,.0f}", f"{ebitda_margin:.1f}% vs {target_ebitda_margin}% Target")
 
-with col_ledger:
+col4.metric("EBIT", f"${d['EBIT']:,.0f}", f"{(d['EBIT']/d['Net Revenue'])*100:.1f}% Margin")
+
+# Row 2: Operational KPIs (From your image)
+st.divider()
+st.subheader("📊 Operational Efficiency Benchmarks")
+k1, k2, k3 = st.columns(3)
+
+# Rent Recovery Calculation
+rent_recovery = (d['Storage Rev'] / rent_actual) * 100
+k1.metric("Rent Recovery", f"{rent_recovery:.1f}%", delta="Target: 125-140%", delta_color="normal" if rent_recovery >= 125 else "inverse")
+
+# Labor as % of Net Revenue
+labor_pct = (d['Labor Cost'] / d['Net Revenue']) * 100
+k2.metric("Labor Efficiency", f"{labor_pct:.1f}%", delta="Target: 45%", delta_color="inverse")
+
+# GP per Pallet
+gp_pallet = d['Gross Profit'] / vol
+k3.metric("GP / Pallet", f"${gp_pallet:,.2f}")
+
+# --- 7. LEDGER & VISUALS ---
+st.divider()
+c_left, c_right = st.columns([1.5, 1])
+
+with c_left:
     st.subheader("📝 Live Operating Ledger")
-    # Allows for on-the-fly adjustment of the base P&L
-    st.session_state.financial_engine = st.data_editor(
-        st.session_state.financial_engine, 
-        use_container_width=True, 
-        key="light_pnl_edit"
-    )
+    # This allows you to edit the "Real World" numbers live
+    st.session_state.financial_engine = st.data_editor(st.session_state.financial_engine, hide_index=True, use_container_width=True)
 
-# 
+with c_right:
+    st.subheader("🧪 Margin Waterfall")
+    fig = go.Figure(go.Waterfall(
+        x = ["Net Rev", "Labor", "Facility", "Pkg/Cons", "SG&A", "EBITDA"],
+        y = [d['Net Revenue'], -d['Labor Cost'], -d['Facility Cost'], -d['Pkg & Consumables'], -(d['IT/Admin'] + d['Corp Mgmt']), 0],
+        measure = ["relative", "relative", "relative", "relative", "relative", "total"]
+    ))
+    fig.update_layout(height=400, template="plotly_white", margin=dict(t=10, b=10, l=10, r=10))
+    st.plotly_chart(fig, use_container_width=True)
 
-# Row 3: Strategic Commentary
-st.markdown("---")
-st.subheader("📝 Management commentary")
-col_com1, col_com2 = st.columns(2)
-with col_com1:
-    st.text_area("Operational Risks", "Labor availability remains tight for night shifts; MHE lease renewals pending Q3.")
-with col_com2:
-    st.text_area("Growth Opportunities", "Potential for 15% density increase via VNA (Very Narrow Aisle) conversion in Zone B.")
-
-if st.button("🔒 Finalize Strategic Pack"):
+if st.button("🚀 Finalize Monthly Audit"):
     st.balloons()
-    st.success("Ground Transportation & 3PL Playbook Certified.")
+    st.success("Analysis aligns with Best Practice Benchmarks.")
