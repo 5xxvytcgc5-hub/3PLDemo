@@ -1,43 +1,32 @@
 import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go
+import numpy as np
 
-# --- 1. PAGE CONFIGURATION ---
-st.set_page_config(page_title="3PL Playbook Professional", layout="wide", initial_sidebar_state="expanded")
+# Use a try-except block to handle missing modules gracefully
+try:
+    import plotly.graph_objects as go
+    import plotly.express as px
+except ModuleNotFoundError:
+    st.error("Missing Plotly library. Please add 'plotly' to your requirements.txt file.")
+    st.stop()
 
-# --- 2. THEME & STYLING ---
-st.markdown("""
-    <style>
-    .main-header { font-size: 2.2em; font-weight: 800; color: #0984e3; }
-    .metric-container { background-color: #f8f9fa; padding: 15px; border-radius: 10px; border: 1px solid #dee2e6; }
-    [data-testid="stMetricValue"] { color: #0984e3; }
-    </style>
-    """, unsafe_allow_html=True)
+# --- PAGE CONFIG ---
+st.set_page_config(page_title="3PL Playbook", layout="wide")
 
-# --- 3. LOGIC & DATA ENGINE ---
-def calculate_metrics(df, vol):
-    """Calculates derived financial columns for the entire dataframe."""
-    df = df.copy()
-    df['GP'] = df['Revenue'] - df['Handling Costs'] - df['Storage Overhead']
-    df['EBITDA'] = df['GP'] - df['Equipment Lease'] - df['Fixed OpEx']
-    df['EBIT'] = df['EBITDA'] - df['Depreciation']
-    df['GP_Per_Pallet'] = df['GP'] / vol
-    return df
-
-def initialize_state():
-    """Initializes session state if not already present."""
-    if 'financial_engine' not in st.session_state:
-        months = pd.date_range(start="2025-01-01", periods=12, freq='MS').strftime('%b %Y')
-        st.session_state.financial_engine = pd.DataFrame({
-            'Month': months,
-            'Revenue': [150000.0] * 12,
-            'Handling Costs': [65000.0] * 12,
-            'Storage Overhead': [35000.0] * 12,
-            'Equipment Lease': [12000.0] * 12,
-            'Fixed OpEx': [18000.0] * 12,
-            'Taxes': [4500.0] * 12,
-            'Depreciation': [2500.0] * 12
-        })
+# --- INITIALIZE STATE ---
+if 'financial_engine' not in st.session_state:
+    months = pd.date_range(start="2025-01-01", periods=12, freq='MS').strftime('%b %Y')
+    # Explicitly set data types to float64 for stability
+    st.session_state.financial_engine = pd.DataFrame({
+        'Month': months,
+        'Revenue': np.array([150000.0] * 12, dtype=float),
+        'Handling Costs': np.array([65000.0] * 12, dtype=float),
+        'Storage Overhead': np.array([35000.0] * 12, dtype=float),
+        'Equipment Lease': np.array([12000.0] * 12, dtype=float),
+        'Fixed OpEx': np.array([18000.0] * 12, dtype=float),
+        'Taxes': np.array([4500.0] * 12, dtype=float),
+        'Depreciation': np.array([2500.0] * 12, dtype=float)
+    })
     if 'pallet_throughput' not in st.session_state:
         st.session_state.pallet_throughput = 5000
 
