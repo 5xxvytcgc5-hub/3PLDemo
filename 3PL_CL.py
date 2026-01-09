@@ -18,7 +18,6 @@ st.markdown("""
 def initialize_engine():
     if 'ledger' not in st.session_state:
         months = pd.date_range(start="2025-01-01", periods=12, freq='MS').strftime('%b %Y')
-        # Combined Financials from your "Best Practice" sheet
         st.session_state.ledger = pd.DataFrame({
             'Month': months,
             'Handling Rev': [115000.0] * 12,
@@ -26,10 +25,10 @@ def initialize_engine():
             'VAS Rev': [45000.0] * 12,
             'Pass-Through': [20000.0] * 12,
             'Direct Labor': [110000.0] * 12,
-            'Indirect Labor': [10000.0] * 12,  # Supervisors/Admin
-            'OT Expense': [6000.0] * 12,       # Overtime Tracker
+            'Indirect Labor': [10000.0] * 12,
+            'OT Expense': [6000.0] * 12,
             'Facility Fixed': [58800.0] * 12,
-            'MHE Lease/Maint': [10500.0] * 12, # Material Handling Equipment
+            'MHE Lease/Maint': [10500.0] * 12,
             'Pkg & Consumables': [11200.0] * 12,
             'IT/Admin': [14000.0] * 12,
             'Corp Mgmt Fee': [16800.0] * 12,
@@ -52,54 +51,57 @@ with st.sidebar:
     
     st.divider()
     st.header("🎯 Best Practice Targets")
+    target_gp_pct = st.slider("Target GP %", 20, 40, 30) / 100
     target_ratio = st.slider("Dir:Ind Ratio Target", 5, 15, 10)
     target_ot = st.slider("Target OT %", 0, 10, 3) / 100
 
 # --- 5. CALCULATION ENGINE ---
 df = st.session_state.ledger.copy()
-
-# Financial Aggregations
-df['Net Revenue'] = df['Handling Rev'] + df['Storage Rev'] + df['VAS Rev'] + 15000 # Incl. Mgmt Fee
+df['Net Revenue'] = df['Handling Rev'] + df['Storage Rev'] + df['VAS Rev'] + 15000 
 df['Total Labor'] = df['Direct Labor'] + df['Indirect Labor'] + df['OT Expense']
 df['Direct Costs'] = df['Total Labor'] + df['Facility Fixed'] + df['MHE Lease/Maint'] + df['Pkg & Consumables']
 df['Gross Profit'] = df['Net Revenue'] - df['Direct Costs']
 df['EBITDA'] = df['Gross Profit'] - (df['IT/Admin'] + df['Corp Mgmt Fee'])
-df['EBIT'] = df['EBITDA'] - df['Depreciation']
 
-# Single Month Slice
+# Selected Month
 st.markdown('<div class="main-header">🛡️ 3PL Diagnostic: Finance & IE Intelligence</div>', unsafe_allow_html=True)
 sel_month = st.selectbox("Reporting Period", df['Month'])
 m = df[df['Month'] == sel_month].iloc[0]
 
-# --- 6. KPI DASHBOARD ---
-# Row 1: The P&L Core
+# --- 6. KPI DASHBOARD WITH CALCULATED DELTAS ---
 st.subheader("💰 Financial Performance")
 f1, f2, f3, f4 = st.columns(4)
-f1.metric("Net Revenue", f"${m['Net Revenue']:,.0f}")
-f2.metric("Gross Profit", f"${m['Gross Profit']:,.0f}", f"{(m['Gross Profit']/m['Net Revenue']):.1%}")
-f3.metric("EBITDA", f"${m['EBITDA']:,.0f}", f"{(m['EBITDA']/m['Net Revenue']):.1%}")
-f4.metric("EBIT", f"${m['EBIT']:,.0f}")
 
-# Row 2: IE Efficiency Ratios
+# GP Metric with Delta vs Target
+current_gp_pct = m['Gross Profit'] / m['Net Revenue']
+gp_delta = current_gp_pct - target_gp_pct
+
+f1.metric("Net Revenue", f"${m['Net Revenue']:,.0f}")
+f2.metric("Gross Profit", f"${m['Gross Profit']:,.0f}", f"{gp_delta:+.1%} vs Target")
+f3.metric("EBITDA", f"${m['EBITDA']:,.0f}", f"{(m['EBITDA']/m['Net Revenue']):.1%}")
+f4.metric("GP / Pallet", f"${m['Gross Profit']/vol:,.2f}")
+
 st.subheader("🚀 Operational & IE Benchmarks")
 ie1, ie2, ie3, ie4 = st.columns(4)
 
-# KPI: Direct to Indirect Ratio (Best Practice 10:1 to 12:1)
+# KPI 1: Dir:Ind Ratio (Higher is better)
 dir_ind_ratio = m['Direct Labor'] / (m['Indirect Labor'] if m['Indirect Labor'] > 0 else 1)
-ie1.metric("Dir:Ind Ratio", f"{dir_ind_ratio:.1f}:1", delta=f"Target: {target_ratio}:1")
+ratio_diff = dir_ind_ratio - target_ratio
+ie1.metric("Dir:Ind Ratio", f"{dir_ind_ratio:.1f}:1", f"{ratio_diff:+.1f} vs Target")
 
-# KPI: Rent Recovery (Best Practice 125% - 140%)
+# KPI 2: Rent Recovery (Higher is better)
 rent_rec = m['Storage Rev'] / actual_rent
-ie2.metric("Rent Recovery", f"{rent_rec:.1%}", delta="Goal: 125%+", delta_color="normal" if rent_rec >= 1.25 else "inverse")
+ie2.metric("Rent Recovery", f"{rent_rec:.1%}", f"{(rent_rec - 1.25):+.1%} vs Min (125%)")
 
-# KPI: Overtime Control (Best Practice < 3-5%)
+# KPI 3: Overtime % (Lower is better - using 'inverse' delta color)
 ot_pct = m['OT Expense'] / m['Total Labor']
-ie3.metric("Overtime %", f"{ot_pct:.1%}", delta=f"Target: {target_ot:.1%}", delta_color="inverse")
+ot_variance = ot_pct - target_ot
+ie3.metric("Overtime %", f"{ot_pct:.1%}", f"{ot_variance:+.1%} vs Target", delta_color="inverse")
 
-# KPI: Asset Utilization (MHE & Space)
-ie4.metric("MHE Cost / Unit", f"${m['MHE Lease/Maint']/mhe_fleet:,.0f}", f"Fleet: {mhe_fleet}")
+# KPI 4: MHE Utilization
+ie4.metric("MHE Efficiency", f"{vol/mhe_fleet:.0f} Pallets/Unit", f"Fleet: {mhe_fleet}")
 
-# --- 7. DATA EDITOR & PROFIT BRIDGE ---
+# --- 7. DATA EDITOR & VISUALS ---
 st.divider()
 c_left, c_right = st.columns([1.8, 1])
 
@@ -108,7 +110,8 @@ with c_left:
     st.session_state.ledger = st.data_editor(st.session_state.ledger, hide_index=True, use_container_width=True)
 
 with c_right:
-    st.subheader("🧪 Financial Leakage (Waterfall)")
+    
+    st.subheader("🧪 Financial Leakage")
     fig = go.Figure(go.Waterfall(
         orientation = "v",
         measure = ["relative", "relative", "relative", "relative", "relative", "relative", "total"],
@@ -118,14 +121,3 @@ with c_right:
     ))
     fig.update_layout(height=450, margin=dict(t=20, b=20, l=10, r=10), template="plotly_white")
     st.plotly_chart(fig, use_container_width=True)
-
-# --- 8. IE TACTICAL ANALYSIS ---
-st.divider()
-st.subheader("🔍 IE Tactical Observations")
-o1, o2, o3 = st.columns(3)
-with o1:
-    st.write(f"**Throughput Efficiency:** {vol/headcount:.1f} Pallets / Head")
-with o2:
-    st.write(f"**Storage Density:** {vol/(total_sqft/1000):.2f} Pallets / 1k SQFT")
-with o3:
-    st.write(f"**MHE Utilization:** {vol/mhe_fleet:.1f} Touches / Machine")
